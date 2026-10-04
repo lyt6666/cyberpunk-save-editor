@@ -1,0 +1,16 @@
+# .NET
+bin/
+obj/
+*.user
+
+# 存档备份（不要提交玩家数据）
+*.backup-*
+sav.dat
+
+# macOS
+.DS_Store
+
+# IDE
+.vs/
+.idea/
+*.swp
