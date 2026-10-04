@@ -21,6 +21,10 @@ internal static class Program
     // 金钱在背包里的物品 TweakDBID hash（Items.money）
     private const ulong MoneyHash = 0x0BF5E188EC;
 
+    // 组件（制作材料）与消耗品的 ItemType.Name 判据（来自 TweakDB 反查）
+    private const string CraftingMaterialType = "Gen_CraftingMaterial"; // 组件/制作材料
+    private const string ConsumableTypePrefix = "Con_";                   // 消耗品：弹药/药品/食物
+
     // 单个属性的等级上限（2.x）
     private const int AttrMaxLevel = 20;
 
@@ -71,6 +75,15 @@ internal static class Program
                     break;
                 case "--unlock-traits":
                     opt.UnlockTraits = true;
+                    break;
+                case "--max-components":
+                    opt.MaxComponents = true;
+                    break;
+                case "--max-consumables":
+                    opt.MaxConsumables = true;
+                    break;
+                case "--tweakdb":
+                    opt.TweakDbPath = args[++i];
                     break;
                 case "--max-all":
                     opt.MaxAttrs = opt.MaxSkills = opt.MaxLevel = opt.MaxStreetCred
@@ -139,9 +152,22 @@ internal static class Program
 
         bool changed = false;
 
-        // —— 修改金钱 ——
+        // —— 需要反查物品类型时，加载 TweakDB ——
+        WolvenKit.RED4.TweakDB.TweakDB tweakDb = null;
+        if (opt.MaxComponents || opt.MaxConsumables)
+        {
+            tweakDb = LoadTweakDb(opt);
+            if (tweakDb == null)
+            {
+                Console.WriteLine("⚠ 警告：无法加载 TweakDB，跳过组件/消耗品修改。请用 --tweakdb 指定 tweakdb.bin 路径。");
+            }
+        }
+
+        // —— 修改背包物品（金钱 / 组件 / 消耗品）——
         int moneyItems = 0;
         long moneyBefore = 0;
+        int compItems = 0;
+        int consItems = 0;
         var invNode = save.Nodes.FirstOrDefault(n => n.Name == "inventory");
         if (invNode?.Value is Inventory inventory)
         {
@@ -158,6 +184,25 @@ internal static class Program
                         item.Quantity = opt.MoneyTarget;
                         moneyItems++;
                         changed = true;
+                        continue;
+                    }
+
+                    // 非金钱物品：反查 ItemType.Name，判断组件/消耗品
+                    if (tweakDb != null && item.Quantity > 0)
+                    {
+                        var typeName = GetItemTypeName(tweakDb, id);
+                        if (opt.MaxComponents && typeName == CraftingMaterialType)
+                        {
+                            item.Quantity = opt.ComponentsTarget;
+                            compItems++;
+                            changed = true;
+                        }
+                        else if (opt.MaxConsumables && typeName.StartsWith(ConsumableTypePrefix, StringComparison.Ordinal))
+                        {
+                            item.Quantity = opt.ConsumablesTarget;
+                            consItems++;
+                            changed = true;
+                        }
                     }
                 }
             }
@@ -166,6 +211,11 @@ internal static class Program
                 Console.WriteLine("⚠ 警告：未在背包中找到金钱物品（Items.money），金钱未修改。");
             else
                 Console.WriteLine($"金钱：{moneyItems} 个物品，{moneyBefore} → 每个改成 {opt.MoneyTarget}");
+
+            if (opt.MaxComponents)
+                Console.WriteLine($"组件（制作材料）：{compItems} 种，数量 → {opt.ComponentsTarget}");
+            if (opt.MaxConsumables)
+                Console.WriteLine($"消耗品（弹药/药品/食物）：{consItems} 种，数量 → {opt.ConsumablesTarget}");
         }
 
         // —— 修改角色成长数据（点数 / 属性 / 技能 / 等级 / 声望 / 专长区域 / 特质）——
@@ -325,8 +375,73 @@ internal static class Program
         public bool MaxStreetCred = false;
         public bool UnlockPerkAreas = false;
         public bool UnlockTraits = false;
+        public bool MaxComponents = false;
+        public bool MaxConsumables = false;
+        public uint ComponentsTarget = 2147483647;
+        public uint ConsumablesTarget = 2147483647;
+        public string TweakDbPath = null!;
         public bool Backup = false;
         public bool DryRun = false;
+    }
+
+    /// <summary>
+    /// 加载游戏 TweakDB（tweakdb.bin），用于反查物品的 ItemType.Name。
+    /// 只会在需要修改组件/消耗品时调用。
+    /// </summary>
+    private static WolvenKit.RED4.TweakDB.TweakDB LoadTweakDb(Options opt)
+    {
+        var paths = new List<string>();
+        if (!string.IsNullOrEmpty(opt.TweakDbPath))
+            paths.Add(opt.TweakDbPath);
+
+        // 默认候选路径（Steam macOS 版）
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        paths.Add(Path.Combine(home, "Library/Application Support/Steam/steamapps/common/Cyberpunk 2077/r6/cache/tweakdb.bin"));
+
+        foreach (var p in paths)
+        {
+            if (!File.Exists(p))
+                continue;
+            try
+            {
+                var db = new WolvenKit.RED4.TweakDB.TweakDB();
+                var reader = new WolvenKit.RED4.TweakDB.TweakDBReader(new FileStream(p, FileMode.Open, FileAccess.Read));
+                reader.ReadFile(out db);
+                Console.WriteLine($"已加载 TweakDB：{p}");
+                return db;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠ 加载 TweakDB 失败（{p}）：{ex.Message}");
+            }
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// 反查物品的 ItemType.Name（如 "Gen_CraftingMaterial"、"Con_Ammo"）。
+    /// </summary>
+    private static string GetItemTypeName(WolvenKit.RED4.TweakDB.TweakDB db, TweakDBID itemId)
+    {
+        try
+        {
+            var full = db.GetFullRecord(itemId);
+            if (full == null)
+                return null;
+            var itemTypeProp = full.GetType().GetProperty("ItemType");
+            if (itemTypeProp == null)
+                return null;
+            var itemTypeTid = (TweakDBID)itemTypeProp.GetValue(full);
+            var itFull = db.GetFullRecord(itemTypeTid);
+            if (itFull == null)
+                return null;
+            var nameProp = itFull.GetType().GetProperty("Name");
+            return nameProp?.GetValue(itFull)?.ToString();
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static void PrintHelp()
@@ -347,16 +462,20 @@ internal static class Program
   --max-streetcred       把街头声望拉到 50（游戏上限）
   --unlock-perk-areas    解锁全部专长区域
   --unlock-traits        解锁全部特质
+  --max-components       把组件（制作材料）数量拉到上限
+  --max-consumables      把消耗品（弹药/药品/食物）数量拉到上限
+  --tweakdb <path>       手动指定 tweakdb.bin 路径（默认自动定位）
   --max-all              等价于上述 --max-* / --unlock-* 全部开启
   --backup               修改前先备份原存档（强烈建议）
   --dry-run              只预览改动，不写回
   --help                 显示本帮助
 
 示例（macOS）：
-  dotnet run -- --save ""$HOME/Library/Application Support/CD Projekt Red/Cyberpunk 2077/saves/ManualSave-1/sav.dat"" --max-all --backup
+  dotnet run -- --save ""$HOME/Library/Application Support/CD Projekt Red/Cyberpunk 2077/saves/ManualSave-1/sav.dat"" --max-all --max-components --max-consumables --backup
 
 注意：
   * 本工具只适用于 macOS 版赛博朋克 2077（Steam macOS 版，补丁 2.x）。
+  * --max-components / --max-consumables 需要加载游戏 TweakDB 来反查物品类型。
   * 修改前务必 --backup 备份，改坏了可从备份一键还原。
   * 修改时请先退出游戏。
 ");
