@@ -1,4 +1,4 @@
-# Cyberpunk 2077 存档修改器（macOS 版）
+# 赛博朋克2077 存档修改器（macOS 版）
 
 一个 **macOS 专用**的赛博朋克 2077 存档修改工具，基于官方认可的存档解析库 [WolvenKit.RED4](https://github.com/WolvenKit/WolvenKit) 编写，可以安全地修改：
 
@@ -40,30 +40,6 @@ export PATH="$HOME/.dotnet:$PATH"
 ---
 
 ## 使用步骤
-
-### 方式一：一键脚本（推荐，自动找存档）
-
-不需要手动找存档路径，一条命令自动定位存档目录并批量修改所有手动存档：
-
-```bash
-cd cyberpunk-save-editor
-chmod +x edit.sh
-./edit.sh
-```
-
-脚本会自动：检测 .NET、编译修改器、**自动定位存档目录**（默认路径 → Spotlight → 全盘搜索）、遍历所有手动存档（`ManualSave-*`），每个存前自动备份、改后校验。默认 `--max-all` 一键拉满。
-
-常用变体：
-
-```bash
-./edit.sh                      # 改所有手动存档，全部拉满
-./edit.sh --money 999999       # 只改金钱
-./edit.sh --saves-dir "目录"    # 存档在其他位置时手动指定目录
-./edit.sh --save "某个sav.dat"  # 只改单个存档
-./edit.sh --dry-run            # 只预览不写回
-```
-
-### 方式二：手动指定存档（保留最大灵活度）
 
 ### 1. 找到存档位置
 

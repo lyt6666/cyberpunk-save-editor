@@ -14,3 +14,10 @@ sav.dat
 .vs/
 .idea/
 *.swp
+
+# 一键脚本与打包产物（本地使用，不公开）
+*.command
+make-app.sh
+run-all.sh
+edit.sh
+*.app/
