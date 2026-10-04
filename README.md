@@ -6,6 +6,11 @@
 - 🎯 **属性点**（可分配数量）
 - ⚡ **专长点**（可分配数量）
 - 🏋️ **所有属性等级**（可选，直接拉到 20 级）
+- 🎖️ **所有技能熟练度**（可选，拉到 60 级）
+- ⭐ **角色等级**（可选，拉到 60 级）
+- 🌆 **街头声望**（可选，拉到 50 级）
+- 🔓 **专长区域**（可选，全部解锁）
+- 🧬 **特质**（可选，全部解锁）
 
 > ⚠️ **本工具仅适用于 macOS 版赛博朋克 2077**（Steam macOS 版，补丁 2.x）。
 > Windows 用户请使用 [CyberCAT-SimpleGUI](https://github.com/Deweh/CyberCAT-SimpleGUI) 或 WolvenKit 本体。
@@ -51,9 +56,23 @@ macOS 下赛博朋克 2077 存档默认在：
 ```bash
 cd cyberpunk-save-editor
 dotnet run -- --save "$HOME/Library/Application Support/CD Projekt Red/Cyberpunk 2077/saves/ManualSave-1/sav.dat" \
+  --max-all \
+  --backup
+```
+
+`--max-all` 一键拉满所有可改项（属性、技能、等级、声望、专长区域、特质），等价于下面这组参数：
+
+```bash
+dotnet run -- --save "<sav.dat 路径>" \
   --money 2147483647 \
   --attr-points 999 \
   --perk-points 999 \
+  --max-attrs \
+  --max-skills \
+  --max-level \
+  --max-streetcred \
+  --unlock-perk-areas \
+  --unlock-traits \
   --backup
 ```
 
@@ -72,6 +91,12 @@ dotnet run -- --save "$HOME/Library/Application Support/CD Projekt Red/Cyberpunk
 | `--attr-points <n>` | 可分配属性点数量 | `999` |
 | `--perk-points <n>` | 可分配专长点数量 | `999` |
 | `--max-attrs` | 把所有属性直接拉到 20 级 | 关闭 |
+| `--max-skills` | 把所有技能熟练度拉到 60 级 | 关闭 |
+| `--max-level` | 把角色等级拉到 60（游戏上限） | 关闭 |
+| `--max-streetcred` | 把街头声望拉到 50（游戏上限） | 关闭 |
+| `--unlock-perk-areas` | 解锁全部专长区域 | 关闭 |
+| `--unlock-traits` | 解锁全部特质 | 关闭 |
+| `--max-all` | 等价于上述 `--max-*` / `--unlock-*` 全部开启 | 关闭 |
 | `--backup` | 修改前自动备份原存档 | 关闭 |
 | `--dry-run` | 只预览、不写回 | 关闭 |
 | `--help` | 显示帮助 | — |
@@ -94,6 +119,11 @@ dotnet run -- --save "$HOME/Library/Application Support/CD Projekt Red/Cyberpunk
 | 金钱 | `Inventory` 节点里 `Items.money` 物品的堆叠数量（`ItemData.Quantity`） |
 | 属性点 | `ScriptableSystemsContainer` → `PlayerDevelopmentSystem` → `PlayerDevelopmentData.DevPoints[Attribute].Unspent` |
 | 专长点 | 同上，`DevPoints[Primary/Secondary].Unspent` |
+| 属性等级 | `PlayerDevelopmentData.Attributes[].Value` |
+| 技能熟练度 | `PlayerDevelopmentData.Proficiencies[].CurrentLevel` |
+| 角色等级/街头声望 | 同在 `Proficiencies` 里的 `Level` / `StreetCred` 两项 |
+| 专长区域 | `PlayerDevelopmentData.PerkAreas[].Unlocked` |
+| 特质 | `PlayerDevelopmentData.Traits[].Unlocked` |
 
 工具使用 `CyberpunkSaveReader` / `CyberpunkSaveWriter` 完成读改写，`NodeWriter` 会自动重算所有节点的偏移和大小，比逐字节硬改可靠得多。
 
